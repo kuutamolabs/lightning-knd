@@ -1,6 +1,8 @@
 use crate::cipher::Cipher;
+use crate::payment::{Payment, MillisatAmount};
 use crate::{connection, to_i64, Client};
 use anyhow::{bail, Result};
+use bitcoin::consensus::encode::serialize_hex;
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::PublicKey;
 use bitcoin::{BlockHash, Txid};
@@ -11,6 +13,7 @@ use lightning::chain::keysinterface::{KeysInterface, Sign};
 use lightning::chain::transaction::OutPoint;
 use lightning::chain::{self, ChannelMonitorUpdateStatus, Watch};
 use lightning::ln::channelmanager::{ChannelManager, ChannelManagerReadArgs};
+use lightning::ln::{PaymentHash, PaymentPreimage, PaymentSecret};
 use lightning::routing::gossip::NetworkGraph;
 use lightning::routing::scoring::{
     ProbabilisticScorer, ProbabilisticScoringParameters, WriteableScore,
@@ -308,6 +311,39 @@ impl LdkDatabase {
                 .expect("Unable to deserialize scorer")
             });
         Ok(scorer)
+    }
+
+    pub async fn persist_payment(&self, hash: &PaymentHash, payment: &Payment) -> Result<()> {
+        debug!("Persist payment: {}", serialize_hex(&hash.0));
+        let ciphertext = payment.secret.map(|s| self.cipher.encrypt(&s.0));
+        self.client
+            .read()
+            .await
+            .execute(
+                "UPSERT INTO payments (hash, preimage, secret, status, amount_msat, is_outbound) VALUES ($1, $2, $3, $4, $5, $6)",
+                &[&hash.0.as_ref(), &payment.preimage.as_ref().map(|x| x.0.as_ref()), &ciphertext, &payment.status, &payment.amount_msat.0, &payment.is_outbound],
+            )
+            .await?;
+        Ok(())
+    }
+
+    pub async fn fetch_payment(&self, hash: &PaymentHash) -> Result<Option<Payment>> {
+        let payment = self.client.read().await.query_opt("SELECT hash, preimage, secret, status, amount_msat, is_outbound, FROM payments WHERE hash = $1", &[&hash.0.as_ref()])
+        .await?
+        .map(|row| {
+            let preimage: Option<Vec<u8>> = row.get("preimage");
+            let ciphertext: Option<Vec<u8>> = row.get("secret");
+            let secret = ciphertext.map(|c| self.cipher.decrypt(&c));
+
+            Payment {
+                preimage: preimage.map(|p| PaymentPreimage(p.try_into().unwrap())),
+                secret: secret.map(|s| PaymentSecret(s.try_into().unwrap())),
+                status: row.get("status"),
+                amount_msat: MillisatAmount(row.get("amount_msat")),
+                is_outbound: row.get("is_outbound")
+            }
+        });
+        Ok(payment)
     }
 }
 

@@ -2,7 +2,6 @@ mod controller;
 mod event_handler;
 mod hex_utils;
 mod net_utils;
-mod payment_info;
 mod prometheus;
 mod wallet;
 

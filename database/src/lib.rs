@@ -1,5 +1,6 @@
 mod cipher;
 pub mod ldk_database;
+pub mod payment;
 pub mod peer;
 pub mod wallet_database;
 
@@ -12,6 +13,13 @@ pub use tokio_postgres::{Client, NoTls, Transaction};
 macro_rules! to_i64 {
     ($int: expr) => {
         i64::try_from($int).unwrap()
+    };
+}
+
+#[macro_export]
+macro_rules! to_maybe_i64 {
+    ($int: expr) => {
+        $int.map(|x| i64::try_from(x).unwrap())
     };
 }
 

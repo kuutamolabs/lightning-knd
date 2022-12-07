@@ -19,6 +19,7 @@ anyhow = "1.0.66"
 refinery = { version = "0.8.6", features = [ "tokio-postgres" ] }
 bdk = "0.24.0"
 serde_json = { version = "1.0" }
+postgres-types = { version = "0.2.4", features = [ "derive" ] }
 
 [dev-dependencies]
 test-utils = { path = "../test-utils" }

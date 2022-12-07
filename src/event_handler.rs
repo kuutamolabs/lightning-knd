@@ -1,4 +1,3 @@
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -6,6 +5,7 @@ use std::time::Duration;
 use bitcoin::network::constants::Network;
 use bitcoin::secp256k1::Secp256k1;
 use bitcoin_bech32::WitnessProgram;
+use database::ldk_database::LdkDatabase;
 use lightning::chain::chaininterface::{BroadcasterInterface, ConfirmationTarget, FeeEstimator};
 use lightning::chain::keysinterface::KeysManager;
 use lightning::routing::gossip::NodeId;
@@ -16,7 +16,7 @@ use tokio::runtime::Handle;
 
 use crate::controller::{ChannelManager, NetworkGraph};
 use crate::hex_utils;
-use crate::payment_info::{HTLCStatus, MillisatAmount, PaymentInfo, PaymentInfoStorage};
+use database::payment::{HTLCStatus, MillisatAmount, Payment };
 use crate::wallet::Wallet;
 use bitcoind::Client;
 
@@ -24,35 +24,30 @@ pub(crate) struct EventHandler {
     channel_manager: Arc<ChannelManager>,
     bitcoind_client: Arc<Client>,
     keys_manager: Arc<KeysManager>,
-    inbound_payments: PaymentInfoStorage,
-    outbound_payments: PaymentInfoStorage,
     network: Network,
     network_graph: Arc<NetworkGraph>,
     wallet: Arc<Wallet>,
+    ldk_database: Arc<LdkDatabase>
 }
 
 impl EventHandler {
-    // TODO remove when payments storage is in database
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         channel_manager: Arc<ChannelManager>,
         bitcoind_client: Arc<Client>,
         keys_manager: Arc<KeysManager>,
-        inbound_payments: PaymentInfoStorage,
-        outbound_payments: PaymentInfoStorage,
         network: Network,
         network_graph: Arc<NetworkGraph>,
         wallet: Arc<Wallet>,
+        ldk_database: Arc<LdkDatabase>
     ) -> EventHandler {
         EventHandler {
             channel_manager,
             bitcoind_client,
             keys_manager,
-            inbound_payments,
-            outbound_payments,
             network,
             network_graph,
             wallet,
+            ldk_database
         }
     }
 }
@@ -145,21 +140,21 @@ impl EventHandler {
                     } => (*payment_preimage, Some(*payment_secret)),
                     PaymentPurpose::SpontaneousPayment(preimage) => (Some(*preimage), None),
                 };
-                let mut payments = self.inbound_payments.lock().unwrap();
-                match payments.entry(*payment_hash) {
-                    Entry::Occupied(mut e) => {
-                        let payment = e.get_mut();
+                match self.ldk_database.fetch_payment(payment_hash).await.unwrap() {
+                    Some(mut payment) => {
                         payment.status = HTLCStatus::Succeeded;
                         payment.preimage = payment_preimage;
                         payment.secret = payment_secret;
                     }
-                    Entry::Vacant(e) => {
-                        e.insert(PaymentInfo {
+                    None => {
+                        let payment = Payment {
                             preimage: payment_preimage,
                             secret: payment_secret,
                             status: HTLCStatus::Succeeded,
-                            amt_msat: MillisatAmount(Some(*amount_msat)),
-                        });
+                            amount_msat: MillisatAmount(*amount_msat as i64),
+                            is_outbound: false
+                        };
+                        self.ldk_database.persist_payment(payment_hash, &payment).await.unwrap();
                     }
                 }
             }
@@ -169,14 +164,14 @@ impl EventHandler {
                 fee_paid_msat,
                 ..
             } => {
-                let mut payments = self.outbound_payments.lock().unwrap();
-                if let Some(payment) = payments.get_mut(payment_hash) {
+                if let Some(mut payment) = self.ldk_database.fetch_payment(&payment_hash).await.unwrap() {
                     payment.preimage = Some(*payment_preimage);
                     payment.status = HTLCStatus::Succeeded;
+                    self.ldk_database.persist_payment(&payment_hash, &payment).await.unwrap();
                     info!(
                         "EVENT: successfully sent payment of {} millisatoshis{} from \
 								 payment hash {:?} with preimage {:?}",
-                        payment.amt_msat,
+                        payment.amount_msat,
                         if let Some(fee) = fee_paid_msat {
                             format!(" (fee {} msat)", fee)
                         } else {
@@ -199,11 +194,9 @@ impl EventHandler {
 				"EVENT: Failed to send payment to payment hash {:?}: exhausted payment retry attempts",
 				hex_utils::hex_str(&payment_hash.0)
 			);
-
-                let mut payments = self.outbound_payments.lock().unwrap();
-                if payments.contains_key(payment_hash) {
-                    let payment = payments.get_mut(payment_hash).unwrap();
+                if let Some(mut payment) = self.ldk_database.fetch_payment(&payment_hash).await.unwrap() {
                     payment.status = HTLCStatus::Failed;
+                    self.ldk_database.persist_payment(&payment_hash, &payment).await.unwrap();
                 }
             }
             Event::PaymentForwarded {

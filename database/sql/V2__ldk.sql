@@ -42,3 +42,16 @@ CREATE TABLE peers (
 );
 
 GRANT SELECT ON TABLE peers TO grafana;
+
+CREATE TYPE htlc_status AS ENUM ('succeeded', 'failed');
+
+CREATE TABLE payments (
+    hash            BYTES NOT NULL,
+    preimage        BYTES,
+    secret          BYTES,
+    status          htlc_status NOT NULL,
+    amount_msat     INT NOT NULL,
+    is_outbound     BOOL NOT NULL,
+    timestamp       TIMESTAMP NOT NULL DEFAULT current_timestamp(),
+    PRIMARY KEY ( preimage )
+);

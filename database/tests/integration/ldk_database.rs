@@ -8,11 +8,12 @@ use bitcoin::{BlockHash, TxMerkleNode};
 use bitcoind::Client;
 use database::ldk_database::LdkDatabase;
 use database::migrate_database;
+use database::payment::{Payment, HTLCStatus, MillisatAmount};
 use database::peer::Peer;
 use lightning::chain::chainmonitor::ChainMonitor;
 use lightning::chain::keysinterface::{InMemorySigner, KeysManager};
 use lightning::chain::Filter;
-use lightning::ln::{channelmanager, functional_test_utils::*};
+use lightning::ln::{channelmanager, functional_test_utils::*, PaymentPreimage, PaymentSecret, PaymentHash};
 use lightning::routing::gossip::NetworkGraph;
 use lightning::routing::scoring::{ProbabilisticScorer, ProbabilisticScoringParameters};
 use lightning::util::events::{ClosureReason, MessageSendEventsProvider};
@@ -73,6 +74,28 @@ pub async fn test_peers() {
     database.delete_peer(&peer).await;
     let peers = database.fetch_peers().await.unwrap();
     assert!(!peers.contains(&peer));
+    teardown().await;
+}
+
+
+/// TODO enable this when cockroach package is updated.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "enums don't work on the old version of cockroach"]
+pub async fn test_payments() {
+    let database = setup().await;
+
+    let payment = Payment {
+        preimage: Some(PaymentPreimage([1; 32])),
+        secret: Some(PaymentSecret([2;32])),
+        status: HTLCStatus::Succeeded,
+        amount_msat: MillisatAmount(50000),
+        is_outbound: true
+    };
+    let payment_hash = PaymentHash([3;32]);
+    database.persist_payment(&payment_hash, &payment).await.unwrap();
+
+    let result = database.fetch_payment(&payment_hash).await.unwrap();
+    assert_eq!(result, Some(payment));
     teardown().await;
 }
 

@@ -1,7 +1,6 @@
 use crate::event_handler::EventHandler;
 use crate::net_utils;
 use crate::net_utils::do_connect_peer;
-use crate::payment_info::PaymentInfoStorage;
 use crate::wallet::Wallet;
 use anyhow::{bail, Result};
 use bitcoin::blockdata::constants::genesis_block;
@@ -33,7 +32,6 @@ use log::{error, info};
 use logger::KndLogger;
 use rand::{thread_rng, Rng};
 use settings::Settings;
-use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -370,18 +368,14 @@ impl Controller {
         });
 
         // Handle LDK Events
-        // TODO: persist payment info to disk
-        let inbound_payments: PaymentInfoStorage = Arc::new(Mutex::new(HashMap::new()));
-        let outbound_payments: PaymentInfoStorage = Arc::new(Mutex::new(HashMap::new()));
         let event_handler = EventHandler::new(
             channel_manager.clone(),
             bitcoind_client,
             keys_manager.clone(),
-            inbound_payments,
-            outbound_payments,
             settings.bitcoin_network,
             network_graph.clone(),
             wallet.clone(),
+            database.clone()
         );
 
         // Initialize routing ProbabilisticScorer
