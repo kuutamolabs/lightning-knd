@@ -1,9 +1,7 @@
 use tokio::signal::unix::SignalKind;
 
-pub mod api;
-mod mock_lightning;
-mod mock_wallet;
-pub mod prometheus;
+mod integration;
+pub mod mocks;
 
 pub async fn quit_signal() {
     let _ = tokio::signal::unix::signal(SignalKind::quit())

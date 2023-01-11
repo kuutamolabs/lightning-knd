@@ -4,6 +4,8 @@ use api::{routes, GetInfo};
 use test_utils::{bitcoin, cockroach, knd};
 use tokio::time::{sleep_until, Instant};
 
+// This test is run separately (in its own process) from the other threads.
+// As it starts all the services it might clash with other tests.
 #[tokio::test(flavor = "multi_thread")]
 pub async fn test_start() {
     let mut cockroach = cockroach!();

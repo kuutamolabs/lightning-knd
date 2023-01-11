@@ -18,6 +18,10 @@ members = [
 name = "lightning-knd"
 path = "src/main.rs"
 
+[[bin]]
+name = "lightning-knd-cli"
+path = "src/cli/main.rs"
+
 [lib]
 doctest = false
 
@@ -55,8 +59,9 @@ axum = "0.6.1"
 axum-server = { version = "0.3", features = ["tls-rustls"] }
 tower-http = { version = "0.3.5", features = [ "cors" ] }
 async-trait = "0.1.60"
+clap = { version = "4.0.32", features = ["derive"] }
+reqwest = { version = "0.11", features = [ "blocking" ] }
 
 [dev-dependencies]
 test-utils = { path = "./test-utils" }
-reqwest = { version = "0.11", default-features = true }
 

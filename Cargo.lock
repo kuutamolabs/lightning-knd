@@ -1310,6 +1310,7 @@ dependencies = [
  "bitcoin-bech32",
  "bitcoind",
  "chrono",
+ "clap",
  "database",
  "futures",
  "hex",
