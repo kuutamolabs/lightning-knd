@@ -3,7 +3,7 @@ use futures::FutureExt;
 use std::sync::Arc;
 use test_utils::test_settings;
 
-use crate::{mock_lightning::MockLightning, quit_signal};
+use crate::{mocks::mock_lightning::MockLightning, quit_signal};
 use lightning_knd::prometheus::start_prometheus_exporter;
 
 #[tokio::test(flavor = "multi_thread")]

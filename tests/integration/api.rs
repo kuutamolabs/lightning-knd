@@ -18,8 +18,8 @@ use test_utils::{https_client, random_public_key, TestSettingsBuilder};
 use api::{routes, Balance, Channel, FundChannel, FundChannelResponse, GetInfo};
 use tokio::runtime::Runtime;
 
-use crate::mock_lightning::MockLightning;
-use crate::mock_wallet::MockWallet;
+use crate::mocks::mock_lightning::MockLightning;
+use crate::mocks::mock_wallet::MockWallet;
 use crate::quit_signal;
 
 macro_rules! generate {
@@ -185,9 +185,9 @@ fn fund_channel_request() -> FundChannel {
     }
 }
 
-static RUNTIME: Lazy<Runtime> = Lazy::new(|| Runtime::new().unwrap());
+static API_RUNTIME: Lazy<Runtime> = Lazy::new(|| Runtime::new().unwrap());
 
-static SETTINGS: Lazy<Settings> = Lazy::new(|| {
+pub static API_SETTINGS: Lazy<Settings> = Lazy::new(|| {
     KndLogger::init("test", log::LevelFilter::Info);
     let settings = TestSettingsBuilder::new()
         .with_data_dir(&format!("{}/test_api", env!("CARGO_TARGET_TMPDIR")))
@@ -197,7 +197,7 @@ static SETTINGS: Lazy<Settings> = Lazy::new(|| {
     let settings_clone = settings.clone();
     // Run the API with its own runtime in its own thread.
     spawn(move || {
-        RUNTIME
+        API_RUNTIME
             .block_on(start_rest_api(
                 settings_clone.rest_api_address.clone(),
                 settings_clone.certs_dir.clone(),
@@ -212,16 +212,26 @@ static SETTINGS: Lazy<Settings> = Lazy::new(|| {
     settings
 });
 
-static ADMIN_MACAROON: Lazy<Vec<u8>> =
-    Lazy::new(|| fs::read(format!("{}/macaroons/admin_macaroon", SETTINGS.data_dir)).unwrap());
+static ADMIN_MACAROON: Lazy<Vec<u8>> = Lazy::new(|| {
+    fs::read(format!(
+        "{}/macaroons/admin_macaroon",
+        API_SETTINGS.data_dir
+    ))
+    .unwrap()
+});
 
-static READONLY_MACAROON: Lazy<Vec<u8>> =
-    Lazy::new(|| fs::read(format!("{}/macaroons/readonly_macaroon", SETTINGS.data_dir)).unwrap());
+static READONLY_MACAROON: Lazy<Vec<u8>> = Lazy::new(|| {
+    fs::read(format!(
+        "{}/macaroons/readonly_macaroon",
+        API_SETTINGS.data_dir
+    ))
+    .unwrap()
+});
 
 static LIGHTNING: Lazy<Arc<MockLightning>> = Lazy::new(|| Arc::new(MockLightning::default()));
 
 fn unauthorized_request(method: Method, route: &str) -> RequestBuilder {
-    let address = &SETTINGS.rest_api_address;
+    let address = &API_SETTINGS.rest_api_address;
     https_client()
         .request(method, format!("https://{}{}", address, route))
         .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))

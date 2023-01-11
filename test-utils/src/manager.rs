@@ -63,6 +63,7 @@ impl Manager {
                 println!("Begin log file: {}", path);
                 println!("{}", buf);
                 println!("End of log file.");
+                panic!("Failed to start {}", self.instance_name);
             } else {
                 println!("Successfully started: {}", self.instance_name);
             }
