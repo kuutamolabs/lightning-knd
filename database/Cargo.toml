@@ -17,13 +17,13 @@ aes-gcm-siv = { version = "0.11.1" }
 crypto-common = { version = "0.1.6", features = ["rand_core"] }
 anyhow = "1.0.68"
 refinery = { version = "0.8.7", features = [ "tokio-postgres" ] }
-bdk = "0.25.0"
+bdk = "0.26.0"
 serde_json = { version = "1.0" }
 
 [dev-dependencies]
 test-utils = { path = "../test-utils" }
 bitcoind = { path = "../bitcoind" }
-once_cell = "1.16.0"
+once_cell = "1.17.0"
 futures = "0.3"
 
 [lib]

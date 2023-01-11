@@ -10,7 +10,7 @@ lightning = { version = "0.0.113", features = ["max_level_trace"] }
 lightning-block-sync = { version = "0.0.113", features = [ "rpc-client" ] }
 tokio = { version = "1", features = [ "full" ] }
 serde_json = { version = "1.0" }
-base64 = "0.20.0"
+base64 = "0.21.0"
 log = { version = "0.4" }
 
 [lib]
